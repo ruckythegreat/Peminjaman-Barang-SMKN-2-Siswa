@@ -8,9 +8,33 @@ use App\Http\Resources\ItemResource;
 
 class ItemController extends Controller
 {
-public function index()
+
+public function index(Request $request)
 {
-    $items = Item::with('category')->latest()->get();
+    $query = Item::with('category');
+
+    if ($request->filled('search')) {
+        $search = $request->search;
+
+        $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('code', 'like', "%{$search}%");
+        });
+    }
+
+    if ($request->filled('category_id')) {
+        $query->where('category_id', $request->category_id);
+    }
+
+    if ($request->filled('condition')) {
+        $query->where('condition', $request->condition);
+    }
+
+    if ($request->boolean('available')) {
+        $query->where('stock', '>', 0);
+    }
+
+    $items = $query->latest()->get();
 
     return ItemResource::collection($items);
 }
