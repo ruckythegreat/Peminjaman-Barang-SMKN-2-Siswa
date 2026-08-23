@@ -23,7 +23,6 @@ class BorrowingController extends Controller
 
         return DB::transaction(function () use ($validated, $request) {
 
-            // Cek semua stok sebelum membuat peminjaman
             foreach ($validated['items'] as $borrowedItem) {
 
                 $item = Item::findOrFail($borrowedItem['item_id']);
@@ -43,7 +42,6 @@ class BorrowingController extends Controller
                 }
             }
 
-            // Buat data peminjaman
             $borrowing = Borrowing::create([
                 'user_id' => $request->user()->id,
                 'borrowing_date' => $validated['borrowing_date'],
@@ -51,7 +49,6 @@ class BorrowingController extends Controller
                 'status' => 'Diajukan',
             ]);
 
-            // Masukkan barang yang dipinjam
             foreach ($validated['items'] as $borrowedItem) {
 
                 $borrowing->borrowingItems()->create([
@@ -66,4 +63,95 @@ class BorrowingController extends Controller
             ], 201);
         });
     }
+
+    public function index(Request $request)
+{
+    $borrowings = Borrowing::with([
+        'user',
+        'borrowingItems.item'
+    ])
+    ->latest()
+    ->get();
+
+    return response()->json([
+        'data' => $borrowings
+    ]);
+}
+
+public function approve($id)
+{
+    return DB::transaction(function () use ($id) {
+
+        $borrowing = Borrowing::with('borrowingItems.item')
+            ->lockForUpdate()
+            ->findOrFail($id);
+
+        if ($borrowing->status !== 'Diajukan') {
+            return response()->json([
+                'message' => 'Peminjaman ini sudah diproses.'
+            ], 422);
+        }
+
+        // Cek stok terlebih dahulu
+        foreach ($borrowing->borrowingItems as $borrowingItem) {
+
+            $item = Item::lockForUpdate()
+                ->findOrFail($borrowingItem->item_id);
+
+            if ($item->stock < $borrowingItem->quantity) {
+                return response()->json([
+                    'message' => "Stok {$item->name} tidak mencukupi.",
+                    'available_stock' => $item->stock,
+                    'requested_quantity' => $borrowingItem->quantity,
+                ], 422);
+            }
+        }
+
+        // Kurangi stok
+        foreach ($borrowing->borrowingItems as $borrowingItem) {
+
+            $item = Item::lockForUpdate()
+                ->findOrFail($borrowingItem->item_id);
+
+            $item->decrement(
+                'stock',
+                $borrowingItem->quantity
+            );
+        }
+
+        // Ubah status
+        $borrowing->update([
+            'status' => 'Dipinjam'
+        ]);
+
+        return response()->json([
+            'message' => 'Peminjaman berhasil disetujui.',
+            'data' => $borrowing->fresh([
+                'user',
+                'borrowingItems.item'
+            ])
+        ]);
+    });
+}
+
+public function reject($id)
+{
+    $borrowing = Borrowing::findOrFail($id);
+
+    if ($borrowing->status !== 'Diajukan') {
+        return response()->json([
+            'message' => 'Peminjaman ini sudah diproses.'
+        ], 422);
+    }
+
+    $borrowing->update([
+        'status' => 'Ditolak'
+    ]);
+
+    return response()->json([
+        'message' => 'Peminjaman berhasil ditolak.',
+        'data' => $borrowing
+    ]);
+}
+
 }

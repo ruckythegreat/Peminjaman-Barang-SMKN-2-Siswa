@@ -22,4 +22,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('items', ItemController::class);
 
     Route::post('/borrowings', [BorrowingController::class, 'store']);
+
+    Route::get('/borrowings', [BorrowingController::class, 'index']);
+
+    Route::post('/borrowings/{id}/approve', [BorrowingController::class, 'approve']);
+
+    Route::post('/borrowings/{id}/reject', [BorrowingController::class, 'reject']);
 });
