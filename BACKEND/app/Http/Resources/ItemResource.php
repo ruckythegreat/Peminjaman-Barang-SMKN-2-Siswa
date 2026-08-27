@@ -16,6 +16,9 @@ class ItemResource extends JsonResource
             'stock' => $this->stock,
             'condition' => $this->condition,
             'description' => $this->description,
+            'image' => $this->image
+                ? asset('storage/' . $this->image)
+                : null,
 
             'category' => new CategoryResource($this->whenLoaded('category')),
         ];

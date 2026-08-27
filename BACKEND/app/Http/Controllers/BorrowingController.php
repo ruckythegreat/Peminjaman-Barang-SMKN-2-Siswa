@@ -21,6 +21,7 @@ class BorrowingController extends Controller
         $validated = $request->validate([
             'borrowing_date' => 'required|date',
             'return_date' => 'nullable|date|after_or_equal:borrowing_date',
+            'reason' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1',
             'items.*.item_id' => 'required|exists:items,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -51,6 +52,7 @@ class BorrowingController extends Controller
                 'borrowing_date' => $validated['borrowing_date'],
                 'return_date' => $validated['return_date'] ?? null,
                 'status' => 'Diajukan',
+                'reason' => $validated['reason'] ?? null,
             ]);
 
             foreach ($validated['items'] as $borrowedItem) {
@@ -69,20 +71,30 @@ class BorrowingController extends Controller
 
     public function index(Request $request)
     {
-        $borrowings = Borrowing::with([
+        $query = Borrowing::with([
             'user',
-            'borrowingItems.item'
-        ])
-        ->latest()
-        ->get();
+            'borrowingItems.item.category',
+        ]);
+
+        if ($request->user()->role !== 'admin') {
+            $query->where('user_id', $request->user()->id);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
 
         return response()->json([
-            'data' => $borrowings
+            'data' => $query->latest()->get(),
         ]);
     }
 
-    public function approve($id)
+    public function approve(Request $request, $id)
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Hanya admin yang dapat menyetujui peminjaman.'], 403);
+        }
+
         return DB::transaction(function () use ($id) {
 
             $borrowing = Borrowing::with('borrowingItems.item')
@@ -134,8 +146,12 @@ class BorrowingController extends Controller
         });
     }
 
-    public function reject($id)
+    public function reject(Request $request, $id)
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Hanya admin yang dapat menolak peminjaman.'], 403);
+        }
+
         $borrowing = Borrowing::findOrFail($id);
 
         if ($borrowing->status !== 'Diajukan') {

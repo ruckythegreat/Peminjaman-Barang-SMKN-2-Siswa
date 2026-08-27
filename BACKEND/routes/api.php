@@ -9,6 +9,13 @@ use App\Http\Controllers\BorrowingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 
+Route::get('/health', function () {
+    return response()->json([
+        'ok' => true,
+        'message' => 'API Peminjaman BarangKy siap.',
+    ]);
+});
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -17,7 +24,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        $user = $request->user();
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'class' => $user->class,
+            'role' => $user->role,
+            'profile_image' => $user->profile_image
+                ? asset('storage/' . $user->profile_image)
+                : null,
+            'trust_points' => $user->trust_points,
+            'is_blocked' => (bool) $user->is_blocked,
+        ]);
     });
 
     Route::apiResource('categories', CategoryController::class);

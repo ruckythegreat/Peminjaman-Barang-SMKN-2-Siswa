@@ -30,8 +30,22 @@ public function index(Request $request)
         $query->where('condition', $request->condition);
     }
 
-    if ($request->boolean('available')) {
-        $query->where('stock', '>', 0);
+    if ($request->filled('available')) {
+        if ($request->boolean('available')) {
+            $query->where('stock', '>', 0);
+        } else {
+            $query->where('stock', '<=', 0);
+        }
+    }
+
+    if ($request->filled('category')) {
+        $names = is_array($request->category)
+            ? $request->category
+            : explode(',', (string) $request->category);
+
+        $query->whereHas('category', function ($q) use ($names) {
+            $q->whereIn('name', $names);
+        });
     }
 
     $items = $query->latest()->get();

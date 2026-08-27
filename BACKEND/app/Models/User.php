@@ -15,6 +15,7 @@ use Illuminate\Notifications\Notifiable;
     'email',
     'password',
     'class',
+    'role',
     'profile_image',
     'trust_points',
     'is_blocked',

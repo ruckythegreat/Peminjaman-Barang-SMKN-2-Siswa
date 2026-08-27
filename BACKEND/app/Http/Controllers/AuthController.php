@@ -14,14 +14,16 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|min:6',
+            'class' => 'nullable|string|max:100',
             'role' => 'nullable|in:user,admin',
         ]);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'password' => $validated['password'],
+            'class' => $validated['class'] ?? null,
             'role' => $validated['role'] ?? 'user',
         ]);
 
@@ -37,11 +39,16 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validated = $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|string',
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        $identifier = $validated['email'];
+
+        $user = User::query()
+            ->where('email', $identifier)
+            ->orWhere('name', $identifier)
+            ->first();
 
         if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
