@@ -132,9 +132,10 @@ class BorrowingTest extends TestCase
             'item_id' => $item->id,
             'quantity' => 2,
         ]);
-
-        $response = $this->actingAs($user)
-            ->postJson("/api/borrowings/{$borrowing->id}/return");
+$response = $this->actingAs($user)
+    ->postJson("/api/borrowings/{$borrowing->id}/return", [
+        'return_condition' => 'Baik',
+    ]);
 
         $response->assertStatus(200);
 
@@ -148,4 +149,161 @@ class BorrowingTest extends TestCase
             'status' => 'Dikembalikan',
         ]);
     }
+
+/** 
+ * Test 4:
+ * User mendapat +5 trust point jika mengembalikan tepat waktu
+ * dan barang dalam kondisi baik.
+ */
+public function test_user_mendapat_trust_point_jika_mengembalikan_tepat_waktu()
+{
+    $user = User::factory()->create([
+        'trust_points' => 50,
+        'is_blocked' => false,
+    ]);
+
+    $item = Item::factory()->create([
+        'stock' => 10,
+    ]);
+
+    $borrowing = Borrowing::factory()->create([
+        'user_id' => $user->id,
+        'borrowing_date' => now()->subDays(2)->toDateString(),
+        'return_date' => now()->toDateString(),
+        'status' => 'Dipinjam',
+    ]);
+
+    $borrowing->borrowingItems()->create([
+        'item_id' => $item->id,
+        'quantity' => 2,
+    ]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/borrowings/{$borrowing->id}/return", [
+            'return_condition' => 'Baik',
+        ]);
+
+    $response->assertStatus(200);
+
+    $this->assertDatabaseHas('users', [
+        'id' => $user->id,
+        'trust_points' => 55,
+        'is_blocked' => false,
+    ]);
 }
+
+public function test_user_kehilangan_trust_point_jika_terlambat(): void
+{
+    $user = User::factory()->create([
+        'trust_points' => 50,
+        'is_blocked' => false,
+    ]);
+
+    $item = Item::factory()->create([
+        'stock' => 10,
+    ]);
+
+    $borrowing = Borrowing::factory()->create([
+        'user_id' => $user->id,
+        'borrowing_date' => now()->subDays(5)->toDateString(),
+        'return_date' => now()->subDays(1)->toDateString(),
+        'status' => 'Dipinjam',
+    ]);
+
+    $borrowing->borrowingItems()->create([
+        'item_id' => $item->id,
+        'quantity' => 2,
+    ]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/borrowings/{$borrowing->id}/return", [
+            'return_condition' => 'Baik',
+        ]);
+
+    $response->assertStatus(200);
+
+    $this->assertDatabaseHas('users', [
+        'id' => $user->id,
+        'trust_points' => 45,
+        'is_blocked' => false,
+    ]);
+}
+
+public function test_user_kehilangan_trust_point_jika_barang_rusak(): void
+{
+    $user = User::factory()->create([
+        'trust_points' => 50,
+        'is_blocked' => false,
+    ]);
+
+    $item = Item::factory()->create([
+        'stock' => 10,
+    ]);
+
+    $borrowing = Borrowing::factory()->create([
+        'user_id' => $user->id,
+        'borrowing_date' => now()->subDays(2)->toDateString(),
+        'return_date' => now()->toDateString(),
+        'status' => 'Dipinjam',
+    ]);
+
+    $borrowing->borrowingItems()->create([
+        'item_id' => $item->id,
+        'quantity' => 2,
+    ]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/borrowings/{$borrowing->id}/return", [
+            'return_condition' => 'Rusak',
+        ]);
+
+    $response->assertStatus(200);
+
+    // Tepat waktu +5, rusak -10 = -5
+    $this->assertDatabaseHas('users', [
+        'id' => $user->id,
+        'trust_points' => 45,
+        'is_blocked' => false,
+    ]);
+}
+
+public function test_user_diblokir_jika_trust_point_mencapai_nol(): void
+{
+    $user = User::factory()->create([
+        'trust_points' => 5,
+        'is_blocked' => false,
+    ]);
+
+    $item = Item::factory()->create([
+        'stock' => 10,
+    ]);
+
+    $borrowing = Borrowing::factory()->create([
+        'user_id' => $user->id,
+        'borrowing_date' => now()->subDays(5)->toDateString(),
+        'return_date' => now()->subDays(1)->toDateString(),
+        'status' => 'Dipinjam',
+    ]);
+
+    $borrowing->borrowingItems()->create([
+        'item_id' => $item->id,
+        'quantity' => 2,
+    ]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/api/borrowings/{$borrowing->id}/return", [
+            'return_condition' => 'Rusak',
+        ]);
+
+    $response->assertStatus(200);
+
+    // 5 - 5 - 10 = 0
+    $this->assertDatabaseHas('users', [
+        'id' => $user->id,
+        'trust_points' => 0,
+        'is_blocked' => true,
+    ]);
+}
+
+}
+

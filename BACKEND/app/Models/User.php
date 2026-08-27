@@ -30,15 +30,15 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'trust_points' => 'integer',
-            'is_blocked' => 'boolean',
-        ];
-    }
+protected function casts(): array
+{
+    return [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'trust_points' => 'integer',
+        'is_blocked' => 'boolean',
+    ];
+}
 
     public function borrowings()
     {
