@@ -10,6 +10,7 @@ class BorrowingItem extends Model
         'borrowing_id',
         'item_id',
         'quantity',
+        'return_condition',
     ];
 
     public function borrowing()
