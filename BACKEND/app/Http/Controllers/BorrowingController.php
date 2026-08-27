@@ -7,6 +7,8 @@ use App\Models\Item;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+
+
 class BorrowingController extends Controller
 {
     public function store(Request $request)
@@ -151,6 +153,37 @@ public function reject($id)
     return response()->json([
         'message' => 'Peminjaman berhasil ditolak.',
         'data' => $borrowing
+    ]);
+}
+
+public function returnBorrowing($id)
+{
+    $borrowing = Borrowing::with('borrowingItems.item')->findOrFail($id);
+
+    if ($borrowing->status !== 'Dipinjam') {
+        return response()->json([
+            'message' => 'Peminjaman tidak dapat dikembalikan.'
+        ], 400);
+    }
+
+    DB::transaction(function () use ($borrowing) {
+        foreach ($borrowing->borrowingItems as $borrowingItem) {
+            $item = $borrowingItem->item;
+
+            $item->increment('stock', $borrowingItem->quantity);
+        }
+
+        $borrowing->update([
+            'status' => 'Dikembalikan',
+        ]);
+    });
+
+    return response()->json([
+        'message' => 'Barang berhasil dikembalikan.',
+        'data' => $borrowing->fresh([
+            'user',
+            'borrowingItems.item'
+        ]),
     ]);
 }
 

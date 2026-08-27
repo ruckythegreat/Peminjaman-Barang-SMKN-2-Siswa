@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\BorrowingController;
+use App\Http\Controllers\DashboardController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -28,4 +29,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/borrowings/{id}/approve', [BorrowingController::class, 'approve']);
 
     Route::post('/borrowings/{id}/reject', [BorrowingController::class, 'reject']);
+    Route::post('/borrowings/{id}/return', [BorrowingController::class, 'returnBorrowing']);
+    Route::get('/dashboard/statistics', [DashboardController::class, 'statistics']);
 });
