@@ -7,7 +7,7 @@
 > **Nama:** Raka Sabari Pratama  
 > **No. Absen:** 35  
 > **Sekolah:** SMKN 2
-
+https://docs.google.com/document/d/1hghvUa5WaFwDTxO3p4P2vsBoeJZuktirh2UQaaRZ9AA/edit?usp=sharing
 ---
 
 ## 📖 Tentang Karya
