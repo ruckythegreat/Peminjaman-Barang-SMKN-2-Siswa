@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import api from '../api/client'
+import api, { apiErrorMessage } from '../api/client'
+import { mediaUrl } from '../api/media'
 import { useAuth } from '../context/AuthContext'
 
-const FILTERS = [
-  { key: 'available', label: 'Tersedia', type: 'stock' },
-  { key: 'unavailable', label: 'Tidak Tersedia', type: 'stock' },
-  { key: 'Alat', label: 'Alat', type: 'category' },
-  { key: 'Buku', label: 'Buku', type: 'category' },
-  { key: 'Lainnya', label: 'Lainnya', type: 'category' },
-]
-
 function itemImage(item) {
-  if (item.image) return item.image
+  const photo = mediaUrl(item.image)
+  if (photo) return photo
   const seed = encodeURIComponent(item.name || item.id)
   return `https://picsum.photos/seed/${seed}/640/420`
 }
@@ -19,6 +13,7 @@ function itemImage(item) {
 export default function LobbyPage() {
   const { user } = useAuth()
   const [items, setItems] = useState([])
+  const [categories, setCategories] = useState([])
   const [outstanding, setOutstanding] = useState(0)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -47,6 +42,10 @@ export default function LobbyPage() {
       .get('/profile')
       .then((res) => setOutstanding(res.data.data?.outstanding_count ?? 0))
       .catch(() => setOutstanding(0))
+    api
+      .get('/categories')
+      .then((res) => setCategories(res.data.data || []))
+      .catch(() => setCategories([]))
   }, [])
 
   useEffect(() => {
@@ -76,7 +75,7 @@ export default function LobbyPage() {
 
   const filtered = useMemo(() => {
     const stockKeys = ['available', 'unavailable'].filter((key) => checks[key])
-    const categoryKeys = ['Alat', 'Buku', 'Lainnya'].filter((key) => checks[key])
+    const categoryKeys = categories.map((c) => c.name).filter((name) => checks[name])
 
     return items.filter((item) => {
       const inStock = (item.stock ?? 0) > 0
@@ -90,7 +89,7 @@ export default function LobbyPage() {
 
       return stockOk && categoryOk
     })
-  }, [items, checks])
+  }, [items, checks, categories])
 
   const toggleCheck = (key) => {
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -127,11 +126,11 @@ export default function LobbyPage() {
         items: [{ item_id: selected.id, quantity: Number(form.quantity) }],
       })
       setFormSuccess('Pengajuan peminjaman berhasil dibuat.')
-      const profile = await api.get('/profile')
+      const [profile, catalog] = await Promise.all([api.get('/profile'), api.get('/items')])
       setOutstanding(profile.data.data?.outstanding_count ?? outstanding)
+      setItems(catalog.data.data || [])
     } catch (err) {
-      const data = err.response?.data
-      setFormError(data?.message || 'Gagal mengajukan peminjaman.')
+      setFormError(apiErrorMessage(err, 'Gagal mengajukan peminjaman.'))
     } finally {
       setSubmitting(false)
     }
@@ -155,7 +154,11 @@ export default function LobbyPage() {
       <section className="lobby-body">
         <aside className="card sidebar">
           <h2>Filter</h2>
-          {FILTERS.map((filter) => (
+          {[
+            { key: 'available', label: 'Tersedia' },
+            { key: 'unavailable', label: 'Tidak Tersedia' },
+            ...categories.map((category) => ({ key: category.name, label: category.name })),
+          ].map((filter) => (
             <label key={filter.key} className="check-row">
               <input
                 type="checkbox"

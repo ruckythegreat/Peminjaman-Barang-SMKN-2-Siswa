@@ -1,7 +1,10 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../api/client'
+import api, { apiErrorMessage } from '../api/client'
+import { mediaUrl } from '../api/media'
+import AdminInventory from '../components/AdminInventory'
 import PieChart from '../components/PieChart'
+import ProfileEditor from '../components/ProfileEditor'
 import { useAuth } from '../context/AuthContext'
 
 function statusClass(status) {
@@ -16,6 +19,7 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [pending, setPending] = useState([])
+  const [borrowed, setBorrowed] = useState([])
   const [openId, setOpenId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [actionMessage, setActionMessage] = useState('')
@@ -28,9 +32,15 @@ export default function DashboardPage() {
       const profileRes = await api.get('/profile')
       setProfile(profileRes.data.data)
       if ((profileRes.data.data.role || user?.role) === 'admin') {
-        const list = await api.get('/borrowings', { params: { status: 'Diajukan' } })
+        const [list, active] = await Promise.all([
+          api.get('/borrowings', { params: { status: 'Diajukan' } }),
+          api.get('/borrowings', { params: { status: 'Dipinjam' } }),
+        ])
         setPending(list.data.data || [])
+        setBorrowed(active.data.data || [])
       }
+    } catch {
+      /* biarkan state sebelumnya jika refresh gagal */
     } finally {
       setLoading(false)
     }
@@ -53,7 +63,20 @@ export default function DashboardPage() {
       await load()
       setOpenId(null)
     } catch (err) {
-      setActionMessage(err.response?.data?.message || 'Aksi gagal.')
+      setActionMessage(apiErrorMessage(err, 'Aksi gagal.'))
+    }
+  }
+
+  const markReturn = async (id, returnCondition) => {
+    setActionMessage('')
+    try {
+      const { data } = await api.post(`/borrowings/${id}/return`, {
+        return_condition: returnCondition,
+      })
+      setActionMessage(data.message)
+      await load()
+    } catch (err) {
+      setActionMessage(apiErrorMessage(err, 'Pengembalian gagal.'))
     }
   }
 
@@ -73,8 +96,8 @@ export default function DashboardPage() {
     <div className="page dashboard">
       <section className="profile-header">
         <div className="avatar-xl">
-          {profile?.profile_image ? (
-            <img src={profile.profile_image} alt={profile.name} />
+          {mediaUrl(profile?.profile_image) ? (
+            <img src={mediaUrl(profile.profile_image)} alt={profile.name} />
           ) : (
             <span>{initial}</span>
           )}
@@ -84,6 +107,7 @@ export default function DashboardPage() {
           <p className="muted">
             {profile?.class || 'Kelas belum diisi'} / {profile?.role === 'admin' ? 'Admin' : 'Siswa'}
           </p>
+          <ProfileEditor profile={profile} onSaved={(next) => setProfile(next)} />
           <button type="button" className="btn-ghost" onClick={handleLogout}>
             Logout
           </button>
@@ -152,6 +176,8 @@ export default function DashboardPage() {
           </tbody>
         </table>
       </section>
+
+      {isAdmin && <AdminInventory />}
 
       {isAdmin && (
         <section className="admin-panel">
@@ -235,7 +261,7 @@ export default function DashboardPage() {
                                   </dd>
                                 </div>
                               </dl>
-                              <div className="admin-actions">
+                              <div className="admin-actions" onClick={(e) => e.stopPropagation()}>
                                 <button type="button" className="btn-primary" onClick={() => act(row.id, 'approve')}>
                                   Setujui
                                 </button>
@@ -248,6 +274,59 @@ export default function DashboardPage() {
                         </tr>
                       )}
                     </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {isAdmin && (
+        <section className="admin-panel">
+          <div className="admin-head">
+            <h2>Pengembalian Barang</h2>
+            <p className="muted">Catat pengembalian untuk peminjaman yang sedang berjalan. Stok akan otomatis bertambah.</p>
+          </div>
+          <div className="card admin-table-card">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Peminjam</th>
+                  <th>Produk</th>
+                  <th>Jatuh tempo</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {borrowed.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Tidak ada barang yang sedang dipinjam.
+                    </td>
+                  </tr>
+                )}
+                {borrowed.map((row) => {
+                  const items = row.borrowing_items || row.borrowingItems || []
+                  const product = items.map((i) => i.item?.name).filter(Boolean).join(', ')
+                  return (
+                    <tr key={row.id}>
+                      <td>#{row.id}</td>
+                      <td>{row.user?.name}</td>
+                      <td>{product || '—'}</td>
+                      <td>{row.return_date || '—'}</td>
+                      <td>
+                        <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                          <button type="button" className="btn-primary" onClick={() => markReturn(row.id, 'Baik')}>
+                            Kembali baik
+                          </button>
+                          <button type="button" className="btn-danger" onClick={() => markReturn(row.id, 'Rusak')}>
+                            Kembali rusak
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>

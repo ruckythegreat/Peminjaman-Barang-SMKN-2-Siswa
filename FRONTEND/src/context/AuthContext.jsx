@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
+import { publicUser } from '../api/media'
 
 const AuthContext = createContext(null)
 
@@ -11,6 +12,14 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('barangky_token'))
   const [loading, setLoading] = useState(Boolean(token))
 
+  const persistUser = (next) => {
+    const mapped = publicUser(next)
+    setUser(mapped)
+    if (mapped) localStorage.setItem('barangky_user', JSON.stringify(mapped))
+    else localStorage.removeItem('barangky_user')
+    return mapped
+  }
+
   useEffect(() => {
     if (!token) {
       setLoading(false)
@@ -19,15 +28,11 @@ export function AuthProvider({ children }) {
 
     api
       .get('/user')
-      .then((res) => {
-        setUser(res.data)
-        localStorage.setItem('barangky_user', JSON.stringify(res.data))
-      })
+      .then((res) => persistUser(res.data))
       .catch(() => {
-        setUser(null)
+        persistUser(null)
         setToken(null)
         localStorage.removeItem('barangky_token')
-        localStorage.removeItem('barangky_user')
       })
       .finally(() => setLoading(false))
   }, [token])
@@ -35,18 +40,16 @@ export function AuthProvider({ children }) {
   const login = async (payload) => {
     const { data } = await api.post('/login', payload)
     localStorage.setItem('barangky_token', data.token)
-    localStorage.setItem('barangky_user', JSON.stringify(data.user))
+    persistUser(data.user)
     setToken(data.token)
-    setUser(data.user)
     return data
   }
 
   const register = async (payload) => {
     const { data } = await api.post('/register', payload)
     localStorage.setItem('barangky_token', data.token)
-    localStorage.setItem('barangky_user', JSON.stringify(data.user))
+    persistUser(data.user)
     setToken(data.token)
-    setUser(data.user)
     return data
   }
 
@@ -57,13 +60,18 @@ export function AuthProvider({ children }) {
       /* token already invalid */
     }
     localStorage.removeItem('barangky_token')
-    localStorage.removeItem('barangky_user')
+    persistUser(null)
     setToken(null)
-    setUser(null)
+  }
+
+  const updateProfile = async (formData) => {
+    const { data } = await api.post('/profile', formData)
+    persistUser(data.data)
+    return data
   }
 
   const value = useMemo(
-    () => ({ user, token, loading, login, register, logout, setUser }),
+    () => ({ user, token, loading, login, register, logout, updateProfile, setUser: persistUser }),
     [user, token, loading]
   )
 
